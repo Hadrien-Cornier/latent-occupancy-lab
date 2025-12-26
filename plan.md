@@ -8,7 +8,7 @@ Estimate **aggregate person-exposure to indoor PM2.5** over time using only indo
 
 The room can contain **0, 1, 2, …, N people**. We treat **occupant count** as the latent variable:
 
-* Latent: $N_t \in \{0,1,2,\dots,N_{\max}\}$
+* Latent: $N_t\in\{0,1,2,\dots,N_{\max}\}$
 
 We do **not** treat occupancy as a simple “occupied vs empty” bit.
 
@@ -17,28 +17,19 @@ We do **not** treat occupancy as a simple “occupied vs empty” bit.
 We target **aggregate person-exposure** (think “person-minutes weighted by concentration”):
 
 * **True exposure (synthetic only; from the simulator):**
-  $$
-  E_{\text{true}}=\sum_t PM_{\text{true}}(t)\cdot N_t \cdot \Delta t
-  $$
-
+  $E_{\text{true}}=\sum_tPM_{\text{true}}(t)\cdot N_t\cdot\Delta t$
 * **Estimated exposure (works in synthetic and real deployments):**
-  $$
-  E_{\text{est}}=\sum_t PM_{\text{obs}}(t)\cdot \mathbb{E}[N_t\mid \text{sensors}] \cdot \Delta t
-  $$
-  where
-  $$
-  \mathbb{E}[N_t\mid \text{sensors}] = \sum_{n=0}^{N_{\max}} n\cdot P(N_t=n\mid \text{sensors})
-  $$
-
+  $E_{\text{est}}=\sum_tPM_{\text{obs}}(t)\cdot\mathbb{E}[N_t\mid\text{sensors}]\cdot\Delta t$  where
+  $\mathbb{E}[N_t\mid\text{sensors}]=\sum_{n=0}^{N_{\max}}n\cdot P(N_t=n\mid\text{sensors})$
 This is the project’s scoreboard. The model that wins is the one with the **lowest exposure error**, not the best occupant counting accuracy. 
 
 ### 1.4 Secondary (diagnostic) goals
 
 These are useful for debugging in simulation, but they are not the optimization target:
 
-* Accuracy of $ \mathbb{E}[N_t] $ vs $N_t$
+* Accuracy of $\mathbb{E}[N_t]$ vs $N_t$
 * Calibration of $P(N_t=n)$
-* Ventilation proxy / inferred air-exchange $ \lambda(t) $ plausibility
+* Ventilation proxy / inferred air-exchange $\lambda(t)$ plausibility
 * Event flags (cooking, ventilation, filtration, HVAC)
 
 ---
@@ -47,7 +38,7 @@ These are useful for debugging in simulation, but they are not the optimization 
 
 ### 2.1 Shared driver: ventilation / air-exchange
 
-Many indoor signals are coupled through a shared latent driver: **ventilation / air-exchange rate** ($ \lambda(t) $). CO₂, humidity (in absolute units), and temperature are all “pulled” toward outdoor conditions by ventilation. This is the backbone of multi-sensor fusion.  
+Many indoor signals are coupled through a shared latent driver: **ventilation / air-exchange rate** ($\lambda(t)$). CO₂, humidity (in absolute units), and temperature are all “pulled” toward outdoor conditions by ventilation. This is the backbone of multi-sensor fusion.  
 
 ### 2.2 PM2.5 is special (and annoying)
 
@@ -58,7 +49,7 @@ PM2.5 is not just “ventilation + source.” It also has **extra sinks** (depos
 Real homes rarely have occupant-count labels, and we need a way to compare models objectively. We build a physics-based simulator (“digital twin”) that generates:
 
 * Multi-sensor time series (CO₂, PM2.5, T, RH)
-* Ground truth $N_t$, $ \lambda(t) $, events
+* Ground truth $N_t$, $\lambda(t)$, events
 * Ground truth exposure $E_{\text{true}}$
 
 Then we choose models by exposure correctness under stress tests.  
@@ -111,7 +102,6 @@ Implement strict validation before modeling:
 * missingness report per channel
 * optional outdoor channels aligned or resampled
 
-Plan B explicitly calls this out; do it early so you don’t debug ghosts. 
 
 ---
 
@@ -124,8 +114,6 @@ We build a reusable Python package with a clean separation:
 3. **Models** (ladder of unsupervised methods; all output count posteriors)
 4. **Evaluation** (exposure-first metrics + ablations + stress sweeps)
 5. **Notebooks** only orchestrate; no core logic inside notebooks
-
-This matches the modular “lab” architecture and model ladder from Plan A, the exposure-first focus from Plan B, and the dependency-driven build spine from Plan C.   
 
 ### 4.1 Suggested repo layout
 
@@ -193,33 +181,24 @@ latent_exposure_lab/
 At each minute t, the simulator produces:
 
 * $N_t$ occupant count (integer)
-* $ \lambda(t) $ ventilation / air-exchange (time-varying, bursty)
+* $\lambda(t)$ ventilation / air-exchange (time-varying, bursty)
 * event flags: cooking, window open, HVAC, filtration
 * “true” (noise-free) signals, plus observed (noisy) sensor signals
 
-Plan A already uses scenarios explicitly like “Sleep (2 ppl) → Empty → Evening (2 ppl)” and Plan C defines modes as $((N_{\text{people}}, \text{VentLevel}))$; we make that explicit and machine-readable.  
 
 ## 5.2 Core dynamics (simple, extensible ODE/discrete approximation)
 
 Use one-zone mass-balance style dynamics.
 
 ### CO₂ dynamics (human source scales with N)
-
-$$
-\dot C = \frac{S_{co2}(N_t)}{V} - \lambda(t)\cdot (C - C_{bg})
-$$
-
-* $S_{co2}(N_t) = N_t \cdot \alpha_{co2}$
-* If outdoor CO₂ is not available (default), treat $C_{bg}$ as a parameter/latent drift (Plan B constraint). 
+$\dot C = \frac{S_{co2}(N_t)}{V} - \lambda(t)\cdot(C-C_{bg})$
+* $S_{co2}(N_t)=N_t\cdot\alpha_{co2}$
+* If outdoor CO₂ is not available (default), treat $C_{bg}$ as a parameter/latent drift (constraint). 
 
 ### Humidity: compute and simulate in absolute humidity
 
 Convert RH→absolute humidity ($H$) using psychrometrics. Ventilation becomes identifiable as a pull toward $H_{out}$. 
-
-$$
-\dot H = \frac{S_{H}(N_t, \text{events})}{V} - \lambda(t)\cdot (H - H_{out})
-$$
-
+$\dot H = \frac{S_{H}(N_t,\text{events})}{V} - \lambda(t)\cdot(H-H_{out})$
 Outdoor forcing is a toggle:
 
 * v1 default: $H_{out}$ treated as constant or slowly varying latent
@@ -227,26 +206,22 @@ Outdoor forcing is a toggle:
 
 ### Temperature: ventilation pull + building heat loss + HVAC confound
 
-Include a UA heat-loss term (Plan C) and allow HVAC events that change $T$ without meaningful ventilation changes.  
+Include a UA heat-loss term and allow HVAC events that change $T$ without meaningful ventilation changes.
 
-$$
-\dot T = \text{internal gains}(N_t, \text{cooking}) - \lambda(t)(T - T_{out}) - UA(T - T_{out}) + \text{HVAC}(t)
-$$
-
+$\dot T = \text{internal gains}(N_t,\text{cooking})-\lambda(t)(T-T_{out})-UA(T-T_{out})+\text{HVAC}(t)$
 ### PM2.5 dynamics: pluggable sinks (must be swappable)
 
 PM is implemented as a plugin class so assumptions can change by swapping one file/class (your explicit requirement).
 
 General form:
-$$
-\dot P = \frac{S_{pm}(\text{events})}{V} - \lambda(t)(P - P_{out}) - k_{dep}P - k_{filt}(t)P
-$$
+
+$\dot P = \frac{S_{pm}(\text{events})}{V}-\lambda(t)(P-P_{out})-k_{dep}P-k_{filt}(t)P$
 
 Implementations:
 
 * `PMVentOnly` (minimal, for debugging)
-* `PMWithDeposition` (adds $ -k_{dep}P $; Plan C realism) 
-* `PMWithDepositionAndFiltration` (adds filtration sink; Plan B realism) 
+* `PMWithDeposition` (adds $-k_{dep}P$; realism) 
+* `PMWithDepositionAndFiltration` (adds filtration sink; realism) 
 
 **Critical toggle:** `pm_infers_lambda` default **False** so PM does not “force” ventilation inference unless explicitly enabled with a trusted PM model. 
 
@@ -349,7 +324,7 @@ Binary occupancy is just the special case $N_\text{max}=1$.
 
 Purpose: strong baseline + interpretability + sanity check.
 
-Core ideas to include (from Plan A’s heuristic phase space and equilibrium handling): 
+Core ideas to include (heuristic phase space and equilibrium handling): 
 
 * Use smoothed `dCO₂`, `d²CO₂`, CO₂ level, plus `dH`, `dT`, PM spikes.
 * **Equilibrium disambiguation**: “flat” doesn’t mean empty; use **CO₂ level** to distinguish low vs high plateaus. 
@@ -398,12 +373,11 @@ Core design:
 
 * Discrete mode includes occupant count + ventilation regime (and optionally HVAC/filtration):
 
-  * Mode example: $(N=n, \text{VentLevel}=\text{low/high}, \text{HVAC}=\text{on/off}, \text{Filtration}=\text{on/off})$
-    Plan C explicitly structures modes this way. 
-* Continuous state includes sensor states and (optionally) a ventilation proxy/latent ($ \lambda(t) $).
+  * Mode example: $(N=n,\text{VentLevel}=\text{low/high},\text{HVAC}=\text{on/off},\text{Filtration}=\text{on/off})$
+* Continuous state includes sensor states and (optionally) a ventilation proxy/latent ($\lambda(t)$).
 * Sensor fusion: CO₂ + absolute humidity (+ temperature when not HVAC-confounded) provide multiple “views” of ventilation. 
 
-Realism constraints (Plan B):
+Realism constraints:
 
 * PM2.5 includes deposition/filtration sinks; PM does not bias $\lambda$ unless enabled. 
 * HVAC confound handled via signature detection gating or explicit HVAC mode. 
@@ -431,15 +405,15 @@ Optional but valuable:
 
 ## 9.1 Primary metrics (synthetic truth)
 
-* Absolute exposure error: $|E_{\text{est}} - E_{\text{true}}|$
-* Relative exposure error: $\frac{|E_{\text{est}} - E_{\text{true}}|}{\max(E_{\text{true}}, \epsilon)}$
+* Absolute exposure error: $|E_{\text{est}}-E_{\text{true}}|$
+* Relative exposure error: $\frac{|E_{\text{est}}-E_{\text{true}}|}{\max(E_{\text{true}},\epsilon)}$
 * Scenario-specific exposure error:
 
   * cooking spikes
   * post-ventilation windows
   * filtration periods
 
-This is Plan B’s “exposure is the objective” principle, generalized to counts. 
+“exposure is the objective” principle, generalized to counts. 
 
 ## 9.2 Secondary diagnostics (simulation only)
 
@@ -490,8 +464,6 @@ Output:
 * plots of error distributions across scenarios
 * short markdown/HTML report
 
-Plan A and Plan B both explicitly want ablations + robustness tests; implement them as a first-class module, not ad-hoc notebook code.  
-
 ---
 
 # 11) Configuration: make assumptions swappable, not hard-coded
@@ -521,8 +493,6 @@ This preserves your ability to revise pollutant/humidity modeling by swapping a 
 ---
 
 # 12) Implementation roadmap (milestones with acceptance tests)
-
-This follows Plan C’s dependency spine, upgraded to exposure-first and count-aware. 
 
 ## Milestone 0 — Project skeleton + data contract
 
